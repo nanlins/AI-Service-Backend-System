@@ -1,0 +1,38 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+.venv/
+venv/
+env/
+
+.env
+.env.local
+
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+.idea/
+.vscode/
+*.log
+
+pgdata/
+# 本地学习资料，不入库
+docs/
+*.pdf
+
+# agent harness 运行时产物（非代码）
+.transcripts/
+.task_outputs/
+.memory/
+.vector_index/
+
+# 审计/评测工具运行时产物
+.audit/
