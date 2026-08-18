@@ -1,12 +1,5 @@
 # AI 服务后端系统
 
-从 0 到 1 实现的可运行 AI 后端服务，用于验证 Python 后端工程能力。
-技术栈：**FastAPI · Pydantic v2 · SQLAlchemy 2.0 (async) · PostgreSQL · Redis · RabbitMQ · Docker Compose · GitHub Actions**
-
-> 完整设计文档见 `docs/06-AI服务后端系统-详细设计与实施计划.md`；知识点学习笔记见 `docs/00` ~ `docs/05`。
-
----
-
 ## 1. 架构说明
 
 ```
