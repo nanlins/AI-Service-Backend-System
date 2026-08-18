@@ -1,0 +1,35 @@
+# 本地 lint 自动化：pre-commit install 后，每次 git commit 自动执行
+# 安装: pip install pre-commit && pre-commit install
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.12.7
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.15.0
+    hooks:
+      - id: mypy
+        args: [app]
+        pass_filenames: false
+        additional_dependencies:
+          - pydantic>=2.7
+          - pydantic-settings>=2.3
+          - fastapi>=0.115
+          - redis>=5.0
+          - sqlalchemy[asyncio]>=2.0.30
+          - aio-pika>=9.4
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-toml
+      - id: check-added-large-files
+        args: [--maxkb=5120]
+      - id: check-case-conflict
+      - id: detect-private-key
