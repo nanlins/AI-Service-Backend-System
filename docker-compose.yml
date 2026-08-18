@@ -1,0 +1,87 @@
+# 敏感变量（POSTGRES_PASSWORD / RABBITMQ_DEFAULT_USER / RABBITMQ_DEFAULT_PASS / JWT_SECRET）
+# 由项目根目录 .env 提供（compose 自动读取）；首次使用请: cp .env.example .env
+services:
+  migrate:
+    build: .
+    command: alembic upgrade head
+    environment: &backend_env
+      DATABASE_URL: postgresql+asyncpg://postgres:${POSTGRES_PASSWORD}@postgres:5432/ai_backend
+      REDIS_URL: redis://redis:6379/0
+      RABBITMQ_URL: amqp://${RABBITMQ_DEFAULT_USER}:${RABBITMQ_DEFAULT_PASS}@rabbitmq:5672/
+      "JWT_SECRET": ${JWT_SECRET}
+      LLM_PROVIDER: ${LLM_PROVIDER:-mock}
+      LLM_API_BASE: ${LLM_API_BASE:-https://api.openai.com/v1}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-gpt-4o-mini}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment: *backend_env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  worker:
+    build: .
+    command: python -m app.worker
+    environment: *backend_env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ai_backend
+      "POSTGRES_PASSWORD": ${POSTGRES_PASSWORD}
+    ports:
+      - "5435:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./scripts/init_databases.sql:/docker-entrypoint-initdb.d/init_databases.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ai_backend"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7
+    ports:
+      - "6381:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      "RABBITMQ_DEFAULT_USER": ${RABBITMQ_DEFAULT_USER}
+      "RABBITMQ_DEFAULT_PASS": ${RABBITMQ_DEFAULT_PASS}
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  pgdata:
