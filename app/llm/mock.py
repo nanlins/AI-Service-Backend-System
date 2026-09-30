@@ -122,3 +122,6 @@ class MockLLM(LLMClient):
             },
             finish_reason="stop",
         )
+
+# 修改记录：
+#   2026-09-29 ruff --fix 修正 I001（import 块排序/空行），恢复 CI lint 门禁绿色

@@ -11,37 +11,41 @@
 
 不要只关注"当前改动的一小部分"，也不要遗漏根目录下的独立文件。
 
-## 逐文件提交规范（通用记忆）
+## 分支与提交规范
 
-项目提交统一采用逐文件提交方式，禁止将所有文件合并为一个 Commit。
+项目提交统一采用"功能分支 + 逻辑分组提交 + squash 合并"方式。
+
+> 历史教训：早期曾执行"逐文件提交"规程，导致单分钟数十个 commit 的机器化历史，
+> 严重损害可读性与评审体验，自 2026-09-29 起废止。
 
 ### 核心要求
 
-- 每个文件独立成为一个 Commit，一个 Commit 只允许包含 1 个文件。
-- 禁止使用 `git add .` 后一次性提交，必须通过多次 `git add <具体文件>` + `git commit` 循环完成。
-- 提交范围必须覆盖项目全部文件：根目录独立文件、所有文件夹及其子文件夹中的代码、配置、文档、资源文件，以及新增、修改、移动、删除的文件。
+- 每个功能/修复在独立分支（`feat/xxx`、`fix/xxx`）上开发，完成后 squash 合并进 main。
+- 一个 Commit 对应一个逻辑变更（一个功能、一个修复、一次重构），允许包含多个相关文件；禁止"一个文件一个 commit"的机械拆分，也禁止把无关变更混入同一 commit。
+- 合并前必须保证本地门禁全绿：`ruff check .`、`mypy app`、`pytest` 全部通过。
+- 提交范围必须覆盖本次逻辑变更涉及的全部文件；不要遗漏根目录独立文件。
 - 如果存在 `.gitignore`，遵循其规则；不提交 `.env`、密钥、本地账号配置等敏感信息。
 - 重写历史前先创建备份标签，例如 `git tag old-history-backup-<项目名> <旧HEAD>`，防止历史丢失。
 
 ### Commit Message 格式
 
-每个文件的 Commit Message 必须同时包含文件名和该文件的功能说明，格式为：
+Commit Message 必须说明本次逻辑变更的内容，格式为：
 
 ```text
-type(scope): <文件名> <具体功能或改动说明>
+type(scope): <改动主题> <具体功能或改动说明>
 ```
 
 示例：
 
 ```text
-feat(backend): main.py FastAPI 应用入口，实现聊天、流式、结构化输出、工具链路、嵌入、历史与供应商测试 API
-test(tests): test_api.py 覆盖健康检查、模型列表、聊天、流式、工具链路、嵌入、历史与供应商测试接口
-chore(root): requirements.txt 声明本地开发与测试依赖
+feat(api): 新增会话删除接口，级联清理消息与任务记录
+test(tasks): 补充 Reaper 补偿扫描的用例，覆盖死信恢复路径
+chore(ci): test job 增加 postgres service 健康检查等待
 ```
 
 必须说明的内容：
 
-- 这个文件负责什么功能
+- 这次变更负责什么功能
 - 本次提交新增了什么能力
 - 修复了什么问题
 - 重构或优化了什么逻辑
@@ -51,24 +55,18 @@ chore(root): requirements.txt 声明本地开发与测试依赖
 
 ### 执行步骤
 
-1. 使用 `git status` 和 `git ls-files` 核对完整文件清单，确认没有遗漏。
-2. 备份旧历史：`git tag old-history-backup-<项目名> HEAD`。
-3. 逐文件循环执行：`git add <具体文件>`，然后 `git commit -m "type(scope): <文件名> <功能说明>"`，直到全部文件提交完成。
-4. 提交后必须校验：
-   - 每个 Commit 只包含 1 个文件：`git diff-tree --root --no-commit-id --name-only -r <commit>`
-   - 提交数量与项目文件数量一致：`git rev-list --count HEAD`
-   - 最终文件树与提交前一致：对比 `git rev-parse HEAD:` 的树哈希
-   - `git status` 干净
-5. 推送前先确认远端指针；历史被重写时使用 `--force-with-lease` 强推，避免覆盖未知新提交。
-6. 每次提交后由检查 Agent 自动复核，确认提交范围、Commit Message 与校验结果后再推送。
+1. 使用 `git status` 和 `git ls-files` 核对变更清单，确认没有遗漏与混入。
+2. 按逻辑变更分组暂存：`git add <相关文件...>`，`git diff --cached --stat` 核对暂存范围后提交。
+3. 推送前确认本地门禁全绿；历史被重写时使用 `--force-with-lease` 强推，避免覆盖未知新提交。
+4. 合并进 main 使用 squash merge，保持主干历史一条逻辑变更一行。
 
 ## 提交前检查
 
 执行提交前，必须先确认完整范围：
 
 1. 使用 `git status` 和 `git ls-files` 查看当前状态与完整文件清单
-2. 逐文件执行 `git add <具体文件>`，每次只暂存 1 个文件
-3. 使用 `git diff --cached --stat` 确认本次暂存区中确实只有该文件
+2. 按逻辑变更分组执行 `git add <相关文件...>`，一个暂存区对应一个 Commit
+3. 使用 `git diff --cached --stat` 确认暂存范围与本次逻辑变更一致
 4. 如果存在 `.gitignore`，应遵循其规则，不提交应忽略的文件
 5. 不要提交敏感信息，例如 `.env`、密钥文件、本地账号配置等
 
@@ -114,4 +112,8 @@ type(scope): <文件名> <具体功能或改动说明>
 
 ## 提交流程
 
-按"逐文件提交规范"生成每个文件的 commit message 草稿，先展示完整文件清单和消息草稿，暂时不要 commit 和 push，等用户确认后再执行。
+按"分支与提交规范"生成本次逻辑变更的 commit message 草稿，先展示变更清单和消息草稿，暂时不要 commit 和 push，等用户确认后再执行。
+
+## 修改记录
+
+- 2026-09-29：废止"逐文件提交规范"，改为功能分支 + 逻辑分组提交 + squash 合并；提交前检查与提交流程同步更新。

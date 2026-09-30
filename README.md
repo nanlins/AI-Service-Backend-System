@@ -1,5 +1,7 @@
 # AI 服务后端系统
 
+[![CI](https://github.com/nanlins/AI-Service-Backend-System/actions/workflows/ci.yml/badge.svg)](https://github.com/nanlins/AI-Service-Backend-System/actions/workflows/ci.yml)
+
 ## 1. 架构说明
 
 ```
@@ -145,3 +147,16 @@ docs/                  # 设计文档与学习笔记
 | `make loadtest` | 简单压测（`python scripts/load_test.py 并发数 任务数`） |
 | `python scripts/requeue_dead.py --requeue-all` | 死信队列人工恢复（先不带参数预览积压） |
 | `pre-commit install` | 启用提交时本地 lint 自动化 |
+
+## 历史说明
+
+本仓库早期历史中存在机器化提交形态：2026-08-18 17:26 同一分钟 94 个 commit（逐文件提交规程产物）。
+该形态源于当时执行的"逐文件提交"自动化规程，不代表真实开发节奏，也不反映代码来源的全部事实；
+自 2026-09-29 起已改为功能分支 + 逻辑分组提交 + squash 合并，并以 CI 门禁（测试/lint/格式/构建）作为合并前提。
+
+## 修改记录
+
+- 2026-09-29：
+  - app/llm/mock.py：ruff --fix 修正 I001（import 排序），恢复 CI lint 门禁绿色
+  - AGENTS.md：废止逐文件提交规程，改为功能分支 + 逻辑分组提交 + squash 合并
+  - README.md：新增 CI badge、历史说明与修改记录小节
