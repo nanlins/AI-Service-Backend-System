@@ -14,7 +14,7 @@
 ```
 
 - **api**：REST 接口 + SSE 流式对话；认证（JWT）、参数校验、统一错误格式。
-- **web UI**：内置单页应用（`app/static/index.html`，无构建依赖），访问 http://localhost:8000/ 即可使用对话、任务中心与健康监控。
+- **web UI**：内置单页应用（`app/static/index.html`，无构建依赖），访问 http://localhost:8001/ 即可使用对话、任务中心与健康监控。
 - **worker**：独立进程消费 RabbitMQ，执行异步任务（summarize / translate / echo），状态机 `pending → running → succeeded/failed/cancelled`。
 - **可靠性**：消息持久化 + 手动 ack + CAS 认领防重复消费 + Redis 分布式锁 + 失败指数退避延迟重投（重试耗尽才置为 failed，拒绝/过期的消息落入死信队列 `ai_tasks.dead`）。
 - **LLM 抽象**：`app/llm/` 定义统一接口，默认 `MockLLM`（零依赖可离线运行），配置 `LLM_PROVIDER=openai` 可切换任意 OpenAI 兼容供应商；支持采样参数（temperature/top_p/max_tokens/stop）按请求覆盖、流式 usage 采集、429/5xx 指数退避重试、finish_reason 截断标记。
@@ -22,6 +22,17 @@
 - **安全**：JWT 密钥与 LLM 密钥强制走环境变量（无默认值、缺失即启动报错）；CORS 白名单默认仅本机；用户输入用 `<user_input>` 标签隔离并标注不可信（提示注入防护）；登录/注册/对话接口启用 Redis 滑动窗口限流（429 带 Retry-After）。
 
 分层：`api`（HTTP 适配）→ `services`（业务逻辑）→ `models/db`（持久化），services 可独立单测。
+
+## 基础设施与端口（Docker Compose 内建，镜像版本见下）
+
+| 服务 | 镜像 | 宿主端口 → 容器端口 | 用途 |
+|---|---|---|---|
+| api | 本地构建（`python:3.12-slim`） | `8001 → 8000` | REST + SSE 对话、Web UI、API 文档 |
+| postgres | `postgres:16` | `5435 → 5432` | 用户/会话/消息/任务持久化 |
+| redis | `redis:7` | `6381 → 6379` | 缓存、任务状态、分布式锁、幂等键、限流 |
+| rabbitmq | `rabbitmq:3.13-management` | `5672 → 5672`、`15672 → 15672` | 任务队列（api → worker）、管理台 |
+
+> 运行时需 Python 3.12+；Docker 方式一键拉起全部依赖，无需本机装 PG/Redis/RabbitMQ。
 
 ## 2. 快速启动
 
@@ -35,8 +46,8 @@ docker compose up --build -d
 
 > **安全提醒**：`JWT_SECRET` 与 `LLM_API_KEY`（`OPENAI_API_KEY` 亦可）只允许放在 `.env` 或环境变量中，绝不写入代码/README/提交到仓库（`.env` 已在 `.gitignore`）。若密钥曾在对话/日志中明文出现过，请立即到平台后台轮换。
 
-- **Web UI**：http://localhost:8000/ （对话 / 任务中心 / 健康状态一体的单页界面）
-- API 文档：http://localhost:8000/docs
+- **Web UI**：http://localhost:8001/ （对话 / 任务中心 / 健康状态一体的单页界面）
+- API 文档：http://localhost:8001/docs
 - RabbitMQ 管理台：http://localhost:15672（账号见 .env）
 - 初始化演示数据（可选）：`python scripts/init_data.py`（demo@example.com，密码见脚本）
 
@@ -45,36 +56,38 @@ docker compose up --build -d
 ```bash
 pip install -e ".[dev]"
 alembic upgrade head
-uvicorn app.main:app --reload     # API
+uvicorn app.main:app --reload     # API（本地直跑默认 8000）
 python -m app.worker              # Worker（另开终端）
 ```
+
+> **端口说明**：Docker 方式 API 映射到宿主 **8001**（容器内 8000，避开 API-Playground 的 8000）；本地 `uvicorn` 直跑仍是 **8000**。
 
 ## 3. 接口示例
 
 ```bash
 # 注册 + 登录
-curl -X POST localhost:8000/api/v1/auth/register \
+curl -X POST localhost:8001/api/v1/auth/register \
   -H 'Content-Type: application/json' \
   -d '{"email": "demo@example.com", "password": "demo123456"}'
-TOKEN=`curl -s -s -X POST localhost:8000/api/v1/auth/login \
+TOKEN=`curl -s -s -X POST localhost:8001/api/v1/auth/login \
   -H 'Content-Type: application/json' \
   -d '{"email": "demo@example.com", "password": "demo123456"}' \
   | python -c "import sys,json;print(json.load(sys.stdin)['access_token'])")
 
 # 创建会话并对话（流式加 "stream": true）
-SID=$(curl -s -X POST localhost:8000/api/v1/sessions \
+SID=$(curl -s -X POST localhost:8001/api/v1/sessions \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -d '{"title": "测试"}' | python -c "import sys,json;print(json.load(sys.stdin)['id'])")
-curl -N -X POST localhost:8000/api/v1/sessions/$SID/messages \
+curl -N -X POST localhost:8001/api/v1/sessions/$SID/messages \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -d '{"content": "你好", "stream": true}'
 
 # 创建异步任务（幂等键防重复提交）→ 轮询结果
-curl -s -X POST localhost:8000/api/v1/tasks \
+curl -s -X POST localhost:8001/api/v1/tasks \
   -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
   -H 'Idempotency-Key: demo-001' \
   -d '{"type": "summarize", "payload": {"text": "这里是一段需要摘要的长文本"}}'
-curl -s localhost:8000/api/v1/tasks/1 -H "Authorization: Bearer $TOKEN"
+curl -s localhost:8001/api/v1/tasks/1 -H "Authorization: Bearer $TOKEN"
 ```
 
 ## 4. 测试说明
@@ -160,3 +173,5 @@ docs/                  # 设计文档与学习笔记
   - app/llm/mock.py：ruff --fix 修正 I001（import 排序），恢复 CI lint 门禁绿色
   - AGENTS.md：废止逐文件提交规程，改为功能分支 + 逻辑分组提交 + squash 合并
   - README.md：新增 CI badge、历史说明与修改记录小节
+
+- 2026-10-02：端口分配（api 8000→8001 避免与 API-Playground 冲突）、新增基础设施版本与端口清单

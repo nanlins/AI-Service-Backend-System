@@ -21,7 +21,8 @@ services:
   api:
     build: .
     ports:
-      - "8000:8000"
+      # 宿主端口 8001 避免与 API-Playground(8000) 冲突；容器内仍 8000
+      - "8001:8000"
     environment: *backend_env
     depends_on:
       migrate:
@@ -85,3 +86,6 @@ services:
 
 volumes:
   pgdata:
+
+# 修改记录：
+#   2026-10-02 api 宿主端口 8000→8001（避免与 API-Playground 冲突，容器内仍 8000）
