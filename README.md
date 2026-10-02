@@ -33,6 +33,8 @@
 | rabbitmq | `rabbitmq:3.13-management` | `5672 → 5672`、`15672 → 15672` | 任务队列（api → worker）、管理台 |
 
 > 运行时需 Python 3.12+；Docker 方式一键拉起全部依赖，无需本机装 PG/Redis/RabbitMQ。
+>
+> **默认开发凭证见 `.env.example`**：`POSTGRES_PASSWORD=dev_pg_pw_001`、`RABBITMQ_DEFAULT_USER/PASS=admin/dev_mq_pw_001`、`JWT_SECRET=dev_jwt_secret_001`。克隆后 `cp .env.example .env` 即拿到这些默认值，`docker compose` 会用它们初始化数据库，无需手动建库/装中间件。**生产部署必须改掉默认密码并随机生成 `JWT_SECRET`。**
 
 ## 2. 快速启动
 
@@ -177,3 +179,5 @@ docs/                  # 设计文档与学习笔记
 - 2026-10-02：端口分配（api 8000→8001 避免与 API-Playground 冲突）、新增基础设施版本与端口清单
 
 - 2026-10-02：postgres 宿主端口 5435→15432（避开 Windows 保留端口段 5402-5501）
+
+- 2026-10-02：补充默认开发凭证说明（克隆者 cp .env.example 即得，生产需改密）
