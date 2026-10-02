@@ -50,7 +50,8 @@ services:
       POSTGRES_DB: ai_backend
       "POSTGRES_PASSWORD": ${POSTGRES_PASSWORD}
     ports:
-      - "5435:5432"
+      # 宿主端口 15432 避开 Windows 保留端口段（5402-5501 曾吞掉 5435）与 CCo(5434)
+      - "15432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./scripts/init_databases.sql:/docker-entrypoint-initdb.d/init_databases.sql:ro
@@ -88,4 +89,5 @@ volumes:
   pgdata:
 
 # 修改记录：
-#   2026-10-02 api 宿主端口 8000→8001（避免与 API-Playground 冲突，容器内仍 8000）
+#   2026-10-02 api 宿主端口 8000→8001（避免与 API-Playground 冲突）
+#   2026-10-02 postgres 宿主端口 5435→15432（5435 落入 Windows 保留段 5402-5501）

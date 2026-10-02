@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import os
 
-os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://postgres:dev_pg_pw_001@localhost:5435/ai_backend_test")
+os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://postgres:dev_pg_pw_001@localhost:15432/ai_backend_test")
 os.environ.setdefault("AUTO_MIGRATE", "false")
 os.environ.setdefault("LLM_PROVIDER", "mock")
 os.environ.setdefault("LLM_MOCK_DELAY", "0")
