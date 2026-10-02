@@ -92,6 +92,47 @@ curl -s -X POST localhost:8001/api/v1/tasks \
 curl -s localhost:8001/api/v1/tasks/1 -H "Authorization: Bearer $TOKEN"
 ```
 
+## 异步任务示例（UI / API / RabbitMQ 观察）
+
+三种任务类型（见 `app/mq/consumer.py`）：
+
+| type | payload | 用 LLM | result |
+|---|---|---|---|
+| `echo` | 任意 `{...}` | ❌ 只测 MQ 管道 | `{"echo": payload}` |
+| `translate` | `{"text":"...","target_lang":"en"}` | ✅ | `{"translation":...,"target_lang":...,"model":...}` |
+| `summarize` | `{"text":"...","max_length":100}` | ✅ | `{"summary":...,"model":...,"tokens":...}` |
+
+### Web UI（任务中心）
+
+表单字段 → 后端：`任务类型→type`、`文本内容→payload.text`、`任务语言(仅 translate 显示)→payload.target_lang`（`en`/`zh`/`ja`）、`优先级(1-10)→priority`；另 echo 自动附加 `payload.note="ui-test"`，summarize 自动附加 `payload.max_length=100`。
+
+1. **echo 回显（测试）**：文本内容填 `你好，这是回显测试` → 结果 `{"echo":{"text":"你好，这是回显测试","note":"ui-test"}}`（不花 token，验证 api→MQ→worker→落库 管道）
+2. **translate**：文本内容 `今天天气很好，适合出门散步。`，任务语言选 `英文(en)` → `{"translation":"The weather is nice today, perfect for a walk.","target_lang":"en","model":"deepseek-flash"}`
+3. **summarize**：文本内容贴一段长文 → `{"summary":"...","model":"deepseek-flash","tokens":381}`
+
+提交后在任务列表可见状态流转 `pending → running → succeeded`，展开看 `result`。
+
+### API
+
+```bash
+# 先按 §3 登录拿 $TOKEN
+curl -X POST localhost:8001/api/v1/tasks -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
+  -d '{"type":"echo","payload":{"text":"你好","note":"ui-test"},"priority":5}'
+curl localhost:8001/api/v1/tasks/1/status -H "Authorization: Bearer $TOKEN"   # 轻量状态快照
+curl localhost:8001/api/v1/tasks/1 -H "Authorization: Bearer $TOKEN"          # 完整结果
+```
+
+### 在 RabbitMQ 中观察消息流
+
+- **拓扑**：`ai_tasks`(topic) --`task.*`--> 队列 `ai_tasks.workers`；死信 `ai_tasks.dlx`(fanout) --> 队列 `ai_tasks.dead`
+- **消息体只传 `{"task_id": N}`**，路由键 `task.<type>`；真正的 payload 存在数据库，worker 按 id 取
+- 正常情况队列恒为 0（worker 秒消费）。想看消息排队：
+  1. 停 worker：`docker compose stop worker`
+  2. 提交任务 → 管理台 **Queues → ai_tasks.workers**，Ready 计数变为 1
+  3. 看内容：Queues → ai_tasks.workers → **Get Messages**（Ack Mode 选 `Nack message requeue true`）→ `{"task_id": N}`
+  4. 启 worker：`docker compose start worker` → 队列归 0，任务转 `succeeded`
+- 失败排查：重试耗尽/被拒的消息进入 `ai_tasks.dead`，可用 `python scripts/requeue_dead.py --requeue-all` 重投
+
 ## 4. 测试说明
 
 ```bash
